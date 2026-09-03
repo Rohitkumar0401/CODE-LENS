@@ -1,108 +1,46 @@
-import subprocess
-import uuid
+import shutil
+import re
 from pathlib import Path
-from urllib.parse import urlparse
+from git import Repo, GitCommandError
 
-# backend directory
-BASE_DIR = Path(__file__).resolve().parents[2]
-
-# Where cloned repositories will be stored
-REPOSITORIES_DIR = BASE_DIR / "data" / "repositories"
-
-# Create the directory if it does not exist
-REPOSITORIES_DIR.mkdir(parents=True, exist_ok=True)
+# Base directory where all cloned repos will live
+DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "repos"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def validate_github_url(github_url: str):
+def extract_repo_name(github_url: str) -> str:
     """
-    Validate that the given URL belongs to GitHub
-    and contains a repository path.
+    Extracts a clean repo name from a GitHub URL.
+    e.g. https://github.com/user/repository.git -> user__repository
     """
-
-    parsed_url = urlparse(github_url)
-
-    # Check HTTPS
-    if parsed_url.scheme != "https":
-        raise ValueError("Only HTTPS GitHub URLs are allowed")
-
-    # Check GitHub domain
-    if parsed_url.netloc.lower() not in [
-        "github.com",
-        "www.github.com"
-    ]:
-        raise ValueError("Only GitHub repository URLs are allowed")
-
-    # Check that URL contains username/repository
-    parts = parsed_url.path.strip("/").split("/")
-
-    if len(parts) < 2:
-        raise ValueError("Invalid GitHub repository URL")
-
-    return True
+    match = re.search(r"github\.com/([^/]+)/([^/]+?)(\.git)?/?$", github_url.strip())
+    if not match:
+        raise ValueError("Invalid GitHub URL")
+    owner, repo = match.group(1), match.group(2)
+    return f"{owner}__{repo}"
 
 
-def clone_repository(github_url: str):
+def clone_repository(github_url: str) -> dict:
     """
-    Clone a GitHub repository into the CodeLens storage directory.
+    Clones a GitHub repository into the local data/repos directory.
+    Returns metadata about the cloned repo.
     """
+    if not github_url or "github.com" not in github_url:
+        raise ValueError("Please provide a valid GitHub URL")
 
-    # Validate URL before cloning
-    validate_github_url(github_url)
+    repo_name = extract_repo_name(github_url)
+    local_path = DATA_DIR / repo_name
 
-    # Generate unique repository ID
-    repository_id = str(uuid.uuid4())
-
-    # Create local path
-    repository_path = REPOSITORIES_DIR / repository_id
+    if local_path.exists():
+        shutil.rmtree(local_path)
 
     try:
+        Repo.clone_from(github_url, local_path)
+    except GitCommandError as e:
+        raise RuntimeError(f"Failed to clone repository: {str(e)}")
 
-        result = subprocess.run(
-            [
-                "git",
-                "clone",
-                "--depth",
-                "1",
-                github_url,
-                str(repository_path)
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120
-        )
-
-        # Git returned an error
-        if result.returncode != 0:
-
-            # Remove partially created folder if it exists
-            if repository_path.exists():
-                import shutil
-                shutil.rmtree(repository_path)
-
-            raise RuntimeError(
-                "Failed to clone repository: "
-                + result.stderr.strip()
-            )
-
-        return {
-            "repository_id": repository_id,
-            "github_url": github_url,
-            "local_path": str(repository_path),
-            "message": "Repository cloned successfully"
-        }
-
-    except subprocess.TimeoutExpired:
-
-        if repository_path.exists():
-            import shutil
-            shutil.rmtree(repository_path)
-
-        raise RuntimeError(
-            "Repository cloning timed out"
-        )
-
-    except FileNotFoundError:
-
-        raise RuntimeError(
-            "Git is not installed or not available in PATH"
-        )
+    return {
+        "repo_name": repo_name,
+        "local_path": str(local_path),
+        "status": "cloned"
+    }
