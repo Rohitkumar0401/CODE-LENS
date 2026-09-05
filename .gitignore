@@ -216,3 +216,14 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# CodeLens data
+backend/data/
+
+# Env
+.env
