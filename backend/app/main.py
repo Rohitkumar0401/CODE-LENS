@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 import os
 
 from fastapi import FastAPI, HTTPException
@@ -6,6 +9,9 @@ from pydantic import BaseModel
 from app.services.github_service import clone_repository
 from app.services.file_service import get_relevant_files
 from app.services.code_parser_service import parse_repository
+from app.services.chunk_service import chunk_repository
+from app.services.embedding_service import generate_embeddings_batch
+from app.services.vector_service import upsert_chunks
 
 app = FastAPI()
 
@@ -60,4 +66,38 @@ def parse_repository_structure(request: ParseRequest):
         "file_count": len(relevant_files),
         "symbol_count": len(structure),
         "structure": structure,
+    }
+
+
+@app.post("/repository/index")
+def index_repository(request: IngestRequest):
+    try:
+        repo_path = clone_repository(request.github_url)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to clone repository: {e}")
+
+    try:
+        relevant_files = get_relevant_files(repo_path)
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    full_paths = [os.path.join(repo_path, f) for f in relevant_files]
+
+    chunks = chunk_repository(full_paths)
+    code_snippets = [c.code for c in chunks]
+    embeddings = generate_embeddings_batch(code_snippets)
+
+    repo_name = os.path.basename(repo_path)
+
+    try:
+        stored_count = upsert_chunks(chunks, embeddings, repository=repo_name)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to store vectors: {e}")
+
+    return {
+        "message": "Repository indexed successfully",
+        "repo_path": repo_path,
+        "file_count": len(relevant_files),
+        "chunk_count": len(chunks),
+        "vectors_stored": stored_count,
     }
