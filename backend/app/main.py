@@ -12,9 +12,12 @@ from app.services.code_parser_service import parse_repository
 from app.services.chunk_service import chunk_repository
 from app.services.embedding_service import generate_embeddings_batch
 from app.services.vector_service import upsert_chunks
+from app.services.retrieval_service import search_code
 
 app = FastAPI()
 
+
+# ---------- Request models ----------
 
 class IngestRequest(BaseModel):
     github_url: str
@@ -23,6 +26,14 @@ class IngestRequest(BaseModel):
 class ParseRequest(BaseModel):
     repo_path: str
 
+
+class SearchRequest(BaseModel):
+    query: str
+    repository: str | None = None
+    top_k: int = 5
+
+
+# ---------- Routes ----------
 
 @app.get("/")
 def root():
@@ -100,4 +111,25 @@ def index_repository(request: IngestRequest):
         "file_count": len(relevant_files),
         "chunk_count": len(chunks),
         "vectors_stored": stored_count,
+    }
+
+
+@app.post("/repository/search")
+def search_repository(request: SearchRequest):
+    try:
+        results = search_code(
+            query=request.query,
+            repository=request.repository,
+            top_k=request.top_k,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Search failed: {e}")
+
+    return {
+        "query": request.query,
+        "repository": request.repository,
+        "result_count": len(results),
+        "results": results,
     }
