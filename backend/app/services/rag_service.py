@@ -2,6 +2,7 @@
 app/services/rag_service.py
 
 Day 12 — Proper RAG Pipeline
+Day 13 — File + Line References
 
 Combines everything built on Days 9–11 into a single orchestrated flow:
 
@@ -26,7 +27,7 @@ Combines everything built on Days 9–11 into a single orchestrated flow:
     LLM                     (llm_service.generate_answer)
        |
        v
-    Answer
+    Answer + References
 
 This is the single entrypoint the API layer (routes_ask.py) should call.
 Routes stay thin; all pipeline logic and error handling for "what does
@@ -41,22 +42,42 @@ from app.services.retrieval_service import search_code
 from app.services.llm_service import generate_answer
 
 
-def _shape_sources(chunks: List[Dict]) -> List[Dict]:
+def _shape_references(chunks: List[Dict]) -> List[Dict]:
     """
-    Turns raw retrieved chunk dicts into the minimal "where did this
-    answer come from" citation shape used in API responses.
-    """
-    return [
+    Turns raw retrieved chunk dicts into citation objects for the API
+    response, e.g.:
+
         {
+            "file": "backend/services/auth.py",
+            "start_line": 24,
+            "end_line": 48,
+            "function": "login",
+            "class": None,
+            "score": 0.83
+        }
+
+    Deduplicated by (file, start_line, end_line) in case the same
+    chunk is retrieved more than once for a single question.
+    """
+    seen = set()
+    references = []
+
+    for c in chunks:
+        key = (c.get("file_path"), c.get("start_line"), c.get("end_line"))
+        if key in seen:
+            continue
+        seen.add(key)
+
+        references.append({
             "file": c.get("file_path"),
             "start_line": c.get("start_line"),
             "end_line": c.get("end_line"),
             "function": c.get("function"),
             "class": c.get("class"),
             "score": c.get("score"),
-        }
-        for c in chunks
-    ]
+        })
+
+    return references
 
 
 def answer_question(question: str, repository_id: str, top_k: int = 5) -> Dict:
@@ -70,7 +91,9 @@ def answer_question(question: str, repository_id: str, top_k: int = 5) -> Dict:
     Returns:
         {
             "answer": str,
-            "sources": [ {file, start_line, end_line, function, class, score}, ... ],
+            "references": [
+                {file, start_line, end_line, function, class, score}, ...
+            ],
             "chunks_used": int
         }
 
@@ -98,6 +121,6 @@ def answer_question(question: str, repository_id: str, top_k: int = 5) -> Dict:
 
     return {
         "answer": answer,
-        "sources": _shape_sources(chunks),
+        "references": _shape_references(chunks),
         "chunks_used": len(chunks),
     }

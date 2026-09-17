@@ -57,9 +57,9 @@ def test_full_pipeline_happy_path():
     mock_llm.assert_called_once_with(question="How does authentication work?", chunks=FAKE_CHUNKS)
 
     assert result["chunks_used"] == 2
-    assert len(result["sources"]) == 2
-    assert result["sources"][0]["file"] == "auth.py"
-    assert result["sources"][0]["start_line"] == 42
+    assert len(result["references"]) == 2
+    assert result["references"][0]["file"] == "auth.py"
+    assert result["references"][0]["start_line"] == 42
     assert "auth.py" in result["answer"]
     print("PASS: full pipeline returns answer + sources + chunk count")
 
@@ -90,7 +90,7 @@ def test_no_chunks_still_returns_honest_answer():
 
     mock_llm.assert_called_once_with(question="Does this repo do payroll?", chunks=[])
     assert result["chunks_used"] == 0
-    assert result["sources"] == []
+    assert result["references"] == []
     assert "No relevant code" in result["answer"]
     print("PASS: zero-chunk retrieval still produces an honest, non-hallucinated answer")
 

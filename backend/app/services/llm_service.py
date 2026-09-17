@@ -29,7 +29,7 @@ _client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 # gemini-2.5-flash is on Google's free tier (no billing needed) as of
 # this writing. Swap to a newer Flash model (e.g. gemini-3.8-flash) if
 # you want the latest — the rest of this file doesn't need to change.
-DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_MODEL = "gemini-3.6-flash"
 
 SYSTEM_PROMPT = (
     "You are CodeLens, a code assistant that answers questions about a "

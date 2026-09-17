@@ -62,6 +62,6 @@ def ask_repository(payload: AskRequest):
 
     return AskResponse(
         answer=result["answer"],
-        sources=[SourceItem(**s) for s in result["sources"]],
+        sources=[SourceItem(**s) for s in result["references"]],
         chunks_used=result["chunks_used"],
     )

@@ -13,8 +13,10 @@ from app.services.chunk_service import chunk_repository
 from app.services.embedding_service import generate_embeddings_batch
 from app.services.vector_service import upsert_chunks
 from app.services.retrieval_service import search_code
+from app.routes.routes_ask import router as ask_router
 
 app = FastAPI()
+app.include_router(ask_router)
 
 
 # ---------- Request models ----------
