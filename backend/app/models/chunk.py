@@ -1,10 +1,12 @@
-from pydantic import BaseModel
+from dataclasses import dataclass
 from typing import Optional
 
-class CodeChunk(BaseModel):
+
+@dataclass
+class CodeChunk:
     file_path: str
-    function_name: Optional[str] = None
-    class_name: Optional[str] = None
+    function_name: Optional[str]
+    class_name: Optional[str]
     language: str
     start_line: int
     end_line: int

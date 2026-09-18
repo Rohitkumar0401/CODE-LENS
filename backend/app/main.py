@@ -14,6 +14,7 @@ from app.services.embedding_service import generate_embeddings_batch
 from app.services.vector_service import upsert_chunks
 from app.services.retrieval_service import search_code
 from app.routes.routes_ask import router as ask_router
+from app.services.dependency_service import analyze_dependencies
 
 app = FastAPI()
 app.include_router(ask_router)
@@ -134,4 +135,24 @@ def search_repository(request: SearchRequest):
         "repository": request.repository,
         "result_count": len(results),
         "results": results,
+    }
+
+@app.post("/repository/dependencies")
+def analyze_repository_dependencies(request: ParseRequest):
+    try:
+        relevant_files = get_relevant_files(request.repo_path)
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    full_paths = [os.path.join(request.repo_path, f) for f in relevant_files]
+
+    graph = analyze_dependencies(full_paths)
+
+    return {
+        "message": "Dependency analysis complete",
+        "repo_path": request.repo_path,
+        "file_count": graph.file_count,
+        "edge_count": graph.edge_count,
+        "edges": [e.model_dump() for e in graph.edges],
+        "cycles": graph.cycles,
     }
