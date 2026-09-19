@@ -15,6 +15,7 @@ from app.services.vector_service import upsert_chunks
 from app.services.retrieval_service import search_code
 from app.routes.routes_ask import router as ask_router
 from app.services.dependency_service import analyze_dependencies
+from app.services.call_graph_service import build_call_graph
 
 app = FastAPI()
 app.include_router(ask_router)
@@ -155,4 +156,24 @@ def analyze_repository_dependencies(request: ParseRequest):
         "edge_count": graph.edge_count,
         "edges": [e.model_dump() for e in graph.edges],
         "cycles": graph.cycles,
+    }
+
+
+@app.post("/repository/callgraph")
+def get_call_graph(request: ParseRequest):
+    try:
+        relevant_files = get_relevant_files(request.repo_path)
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    full_paths = [os.path.join(request.repo_path, f) for f in relevant_files]
+
+    graph = build_call_graph(full_paths)
+
+    return {
+        "message": "Call graph analysis complete",
+        "repo_path": request.repo_path,
+        "function_count": graph.function_count,
+        "edge_count": graph.edge_count,
+        "edges": [e.model_dump() for e in graph.edges],
     }
